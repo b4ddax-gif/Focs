@@ -38,25 +38,26 @@ jobs:
           PROJECT_DIR=$(dirname "$SETTINGS")
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
 
-          echo "Project found at: $PROJECT_DIR"
+          echo "Project found: $PROJECT_DIR"
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Fix KSP version
+      - name: Configure Kotlin source sets
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          echo "Changing KSP 2.3.5 to Kotlin 2.2.10 compatible KSP..."
+          echo "android.disallowKotlinSourceSets=false" >> gradle.properties
+          echo "Kotlin source-set compatibility enabled."
 
-          sed -i 's/googleDevtoolsKsp = "2.3.5"/googleDevtoolsKsp = "2.2.10-2.0.2"/' gradle/libs.versions.toml
-
-          grep "googleDevtoolsKsp" gradle/libs.versions.toml
-
-      - name: Create Gradle wrapper
+      - name: Prepare Gradle
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          gradle wrapper --gradle-version 9.3.1
-          chmod +x ./gradlew
+          if [ -f "./gradlew" ]; then
+            chmod +x ./gradlew
+          else
+            gradle wrapper
+            chmod +x ./gradlew
+          fi
 
       - name: Build APK
         working-directory: ${{ env.PROJECT_DIR }}
