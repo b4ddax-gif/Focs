@@ -20,27 +20,25 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Extract project ZIP
+      - name: Extract project
         run: |
-          mkdir -p project
+          rm -rf project
+          mkdir project
           unzip -o focus-lock.zip -d project
 
-      - name: Find Gradle project
+      - name: Locate Gradle project
         run: |
-          echo "Searching for Gradle project..."
-          find project -name "settings.gradle*" -o -name "gradlew"
+          SETTINGS=$(find project -name "settings.gradle" -o -name "settings.gradle.kts" | head -1)
 
-      - name: Enter project directory
-        run: |
-          SETTINGS=$(find project -name "settings.gradle*" -print -quit)
           if [ -z "$SETTINGS" ]; then
-            echo "ERROR: settings.gradle not found"
+            echo "ERROR: settings.gradle or settings.gradle.kts not found"
             exit 1
           fi
 
           PROJECT_DIR=$(dirname "$SETTINGS")
-          echo "PROJECT_DIR=$PROJECT_DIR" >> $GITHUB_ENV
-          echo "Project directory: $PROJECT_DIR"
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+
+          echo "Project: $PROJECT_DIR"
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -51,11 +49,13 @@ jobs:
           if [ -f "./gradlew" ]; then
             chmod +x ./gradlew
           else
-            gradle wrapper --gradle-version 8.10.2
+            echo "gradlew not found"
+            echo "Creating Gradle wrapper..."
+            gradle wrapper --gradle-version 9.7.1
             chmod +x ./gradlew
           fi
 
-      - name: Build Debug APK
+      - name: Build APK
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           ./gradlew clean assembleDebug \
@@ -65,7 +65,7 @@ jobs:
 
       - name: Find APK
         run: |
-          find project -type f -name "*.apk" -print
+          find . -type f -name "*.apk" -print
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
