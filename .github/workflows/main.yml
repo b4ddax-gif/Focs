@@ -11,6 +11,7 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -23,31 +24,35 @@ jobs:
       - name: Extract project
         run: |
           rm -rf project
-          mkdir project
+          mkdir -p project
           unzip -o focus-lock.zip -d project
 
-      - name: Find project
+      - name: Find Android project
         run: |
-          SETTINGS=$(find project -name "settings.gradle.kts" -o -name "settings.gradle" | head -1)
+          SETTINGS=$(find project \
+            -name "settings.gradle.kts" \
+            -o -name "settings.gradle" | head -1)
 
           if [ -z "$SETTINGS" ]; then
-            echo "settings.gradle not found"
+            echo "ERROR: Android Gradle project not found"
             exit 1
           fi
 
           PROJECT_DIR=$(dirname "$SETTINGS")
+
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
 
-          echo "Project found: $PROJECT_DIR"
+          echo "Android project found at:"
+          echo "$PROJECT_DIR"
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Configure Kotlin source sets
+      - name: Configure Kotlin compatibility
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
+          touch gradle.properties
           echo "android.disallowKotlinSourceSets=false" >> gradle.properties
-          echo "Kotlin source-set compatibility enabled."
 
       - name: Prepare Gradle
         working-directory: ${{ env.PROJECT_DIR }}
@@ -55,17 +60,40 @@ jobs:
           if [ -f "./gradlew" ]; then
             chmod +x ./gradlew
           else
+            echo "gradlew not found"
+            echo "Creating Gradle wrapper..."
             gradle wrapper
             chmod +x ./gradlew
           fi
 
+      - name: Create debug keystore
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          if [ ! -f "debug.keystore" ]; then
+            keytool -genkeypair \
+              -v \
+              -keystore debug.keystore \
+              -storepass android \
+              -alias androiddebugkey \
+              -keypass android \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
+          fi
+
+          echo "Debug keystore ready."
+
       - name: Build APK
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          ./gradlew clean assembleDebug --stacktrace --no-daemon
+          ./gradlew clean assembleDebug \
+            --stacktrace \
+            --no-daemon
 
       - name: Find APK
         run: |
+          echo "Searching for APK..."
           find project -type f -name "*.apk" -print
 
       - name: Upload APK
