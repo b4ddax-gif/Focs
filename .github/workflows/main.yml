@@ -26,46 +26,46 @@ jobs:
           mkdir project
           unzip -o focus-lock.zip -d project
 
-      - name: Locate Gradle project
+      - name: Find project
         run: |
-          SETTINGS=$(find project -name "settings.gradle" -o -name "settings.gradle.kts" | head -1)
+          SETTINGS=$(find project -name "settings.gradle.kts" -o -name "settings.gradle" | head -1)
 
           if [ -z "$SETTINGS" ]; then
-            echo "ERROR: settings.gradle or settings.gradle.kts not found"
+            echo "settings.gradle not found"
             exit 1
           fi
 
           PROJECT_DIR=$(dirname "$SETTINGS")
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
 
-          echo "Project: $PROJECT_DIR"
+          echo "Project found at: $PROJECT_DIR"
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Prepare Gradle
+      - name: Fix KSP version
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          if [ -f "./gradlew" ]; then
-            chmod +x ./gradlew
-          else
-            echo "gradlew not found"
-            echo "Creating Gradle wrapper..."
-            gradle wrapper --gradle-version 9.7.1
-            chmod +x ./gradlew
-          fi
+          echo "Changing KSP 2.3.5 to Kotlin 2.2.10 compatible KSP..."
+
+          sed -i 's/googleDevtoolsKsp = "2.3.5"/googleDevtoolsKsp = "2.2.10-2.0.2"/' gradle/libs.versions.toml
+
+          grep "googleDevtoolsKsp" gradle/libs.versions.toml
+
+      - name: Create Gradle wrapper
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          gradle wrapper --gradle-version 9.3.1
+          chmod +x ./gradlew
 
       - name: Build APK
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          ./gradlew clean assembleDebug \
-            --stacktrace \
-            --no-daemon \
-            -Pksp.useKSP2=false
+          ./gradlew clean assembleDebug --stacktrace --no-daemon
 
       - name: Find APK
         run: |
-          find . -type f -name "*.apk" -print
+          find project -type f -name "*.apk" -print
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
